@@ -1,5 +1,3 @@
-from sys import stderr
-from os import system
 
 def get_main_wallet():
     with open('../seed/main_wallet.txt', 'r') as file:

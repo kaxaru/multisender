@@ -10,11 +10,12 @@ contract_address = {
         1: '0xdac17f958d2ee523a2206206994597c13d831ec7'
     },
     'usdc': {
-            137: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
-            56: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
-            1: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
-        }
+        137: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
+        56: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+        1: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
+    }
 }
+
 
 def get_asset_from_list(num):
     try:
@@ -26,6 +27,6 @@ def get_asset_from_list(num):
 
     return _asset
 
+
 def get_asset_address(name, provider_chainId):
     return contract_address[name][provider_chainId]
-

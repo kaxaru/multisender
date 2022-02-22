@@ -8,10 +8,11 @@ from os import system
 from ctypes import windll
 from urllib3 import disable_warnings
 
-
-import metamask_wallets
-import API_KEY
+from seed import default
+from controllers import get_default
+from controllers import metamask_wallets, API_KEY
 import contract_asset
+import copy
 
 disable_warnings()
 logger.remove()
@@ -27,23 +28,21 @@ default_provider = API_KEY.get_default_providers()
 main_wallet = metamask_wallets.get_main_wallet()
 wallets = metamask_wallets.get_wallets()
 
-num_of_acc = int(input('How many accs?: '))
-gas_price = float(input('Gas price: '))
+setup_params = copy.deepcopy(default.params)
 
-send_token_or_asset = int(input('1 - def: main token, 2 - optional - asset '))
-if send_token_or_asset == 2:
-    send_option_asset = int(input('1 - into wallets, 2 - from wallets '))
-else:
-    send_option_asset = 1
+setup_params['num_of_acc'] = get_default.get_default_value('num_of_acc')
+setup_params['gas_price'] = get_default.get_default_value('gas_price')
+setup_params['send_token_or_asset'] = get_default.get_default_value('send_token_or_asset')
+if setup_params['send_token_or_asset'] != default.params['send_token_or_asset']:
+    setup_params['send_option_asset'] = get_default.get_default_value('send_option_asset')
 
-send_how_much = 0.001
-option_how_much_token =int(input('1 - def: 0.001, 2 - optional in gwei '))
+setup_params['option_how_much_token'] = get_default.get_default_value('option_how_much_token')
 
-if option_how_much_token == 2:
-    send_how_much = float(input('How much tokens? '))
+if setup_params['option_how_much_token'] != default.params['option_how_much_token']:
+    setup_params['send_how_much'] = get_default.get_default_value('send_how_much')
 
-threads = int(input('Threads: '))
-wait_tx_result = str(input('Wait TX result? (y/N): '))
+setup_params['threads'] = get_default.get_default_value('threads')
+setup_params['wait_tx_result'] = get_default.get_default_value('wait_tx_result')
 
 
 def sign_and_confirm(transaction, private_key, address_from, address_to, acc_num, nonce):
@@ -51,7 +50,7 @@ def sign_and_confirm(transaction, private_key, address_from, address_to, acc_num
     tx_hash = web3.eth.sendRawTransaction(s_tx.rawTransaction)
     logger.info(f'TX id: {web3.toHex(tx_hash)}  address from: {address_from}; address to {address_to} acc: {acc_num} '
                 f'nonce: {nonce}')
-    if wait_tx_result in ('y', 'Y'):
+    if setup_params['wait_tx_result'] in ('y', 'Y'):
         tx_status = web3.eth.waitForTransactionReceipt(tx_hash).status
         if tx_status == 1:
             logger.success(f'TX status: {tx_status}')
@@ -64,9 +63,9 @@ def sendToken(main_address, address_to, provider, nonce, acc_num):
         transaction = {
             "chainId": provider['chainId'],
             'to': address_to.address,
-            'value': web3.toWei(str(send_how_much), 'ether'),
+            'value': web3.toWei(str(default.params['send_how_much']), 'ether'),
             'gas': 21000,
-            'gasPrice': web3.toWei(str(gas_price), 'gwei'),
+            'gasPrice': web3.toWei(str(setup_params['gas_price']), 'gwei'),
             'nonce': nonce + acc_num,
         }
 
@@ -79,16 +78,16 @@ def sendToken(main_address, address_to, provider, nonce, acc_num):
             logger.error(f'Error: {str(error)}')
 
 
-def sendAsset(main_address, address_to, send_option_asset, provider, nonce, acc_num):
+def sendAsset(main_address, address_to, provider, nonce, acc_num):
     try:
         address_from = main_address.address
         address_to_ = address_to.address
-        balance = web3.toWei(str(send_how_much), 'mwei')
+        balance = web3.toWei(str(default.params['send_how_much']), 'mwei')
         private_key_from = main_address.privateKey
 
         # Option: 1) address to wallets
         #         2) wallets to address
-        if send_option_asset == 2:
+        if setup_params['send_option_asset'] != default.params['send_option_asset']:
             address_to_ = main_address.address
             address_from = address_to.address
             balance_on_wallet = contract.functions.balanceOf(address_from).call()
@@ -99,7 +98,7 @@ def sendAsset(main_address, address_to, send_option_asset, provider, nonce, acc_
         transaction = contract.functions.transfer(address_to_, balance).buildTransaction({
             "chainId": provider['chainId'],
             'gas': 120000,
-            'gasPrice': web3.toWei(gas_price, 'gwei'),
+            'gasPrice': web3.toWei(setup_params['gas_price'], 'gwei'),
             'from': address_from,
             'nonce': nonce
         })
@@ -126,10 +125,10 @@ if __name__ == '__main__':
     main_address = web3.eth.account.from_mnemonic(main_wallet.pop(0), account_path="m/44'/60'/0'/0/0")
     cNonce_main_wallet = web3.eth.get_transaction_count(main_address.address)
 
-    if send_token_or_asset == 2:
+    if setup_params['send_token_or_asset'] != default.params['send_token_or_asset']:
         scanner = API_KEY.install_scanner(default_provider['chainId'])
-        option_contract_asset = int(input('Options: 1 - in list, 2 - input contract: '))
-        if option_contract_asset == 1:
+        setup_params['option_contract_asset'] = get_default.get_default_value('option_contract_asset')
+        if setup_params['option_contract_asset'] == default.params['option_contract_asset']:
             contract_list = int(input('1 - usdt, 2 - usdc  '))
             asset_name = contract_asset.get_asset_from_list(contract_list)
             try:
@@ -153,20 +152,21 @@ if __name__ == '__main__':
         mnemonic = wallets.pop(0);
         acc_num = 0
         mnemonic_for_receive += 1
-        while acc_num < num_of_acc:
-            if threading.active_count() <= threads:
-                for thread in range(threads):
+        while acc_num < setup_params['num_of_acc']:
+            if threading.active_count() <= setup_params['threads']:
+                for thread in range(setup_params['threads']):
                     account_path = "m/44'/60'/0'/0/{acc_num}".format(acc_num=acc_num)
                     address_to = web3.eth.account.from_mnemonic(mnemonic, account_path=account_path)
-                    if send_option_asset == 2:
+                    if setup_params['send_option_asset'] != default.params['send_option_asset']:
                         nonce = web3.eth.get_transaction_count(address_to.address)
                     else:
-                        delta_cNonce_main_wallet = (mnemonic_for_receive - 1) * num_of_acc + acc_num
+                        delta_cNonce_main_wallet = (mnemonic_for_receive - 1) * setup_params['num_of_acc'] + acc_num
                         nonce = delta_cNonce_main_wallet + cNonce_main_wallet
-                    if send_token_or_asset == 1:
+                    if setup_params['send_token_or_asset'] == default.params['send_token_or_asset']:
                         Thread(target=sendToken,
                                args=(main_address, address_to, default_provider['provider'], nonce, acc_num)).start()
                     else:
                         Thread(target=sendAsset,
-                               args=(main_address, address_to, send_option_asset, default_provider['provider'], nonce, acc_num)).start()
+                               args=(main_address, address_to,
+                                     default_provider['provider'], nonce, acc_num)).start()
                     acc_num += 1
